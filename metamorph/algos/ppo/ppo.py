@@ -1,4 +1,6 @@
 import os
+import signal
+import sys
 import time
 
 import numpy as np
@@ -13,6 +15,7 @@ from metamorph.utils import optimizer as ou
 from metamorph.utils.meter import TrainMeter
 from torch.utils import tensorboard
 from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 
 from .buffer import Buffer
 from .envs import get_ob_rms
@@ -54,7 +57,10 @@ class PPO:
         )
 
         self.train_meter = TrainMeter()
-        self.writer = SummaryWriter(log_dir=os.path.join(cfg.OUT_DIR, "tensorboard"))
+        self.writer = SummaryWriter(
+            log_dir=os.path.join(cfg.OUT_DIR, "tensorboard"),
+            flush_secs=60  # Auto-flush every 60 seconds
+        )
         # Get the param name for log_std term, can vary depending on arch
         for name, param in self.actor_critic.state_dict().items():
             if "log_std" in name:
@@ -65,12 +71,61 @@ class PPO:
         #     print(name, weight.requires_grad)
 
         self.fps = 0
+        
+        # Register signal handlers for graceful shutdown on HPC timeout
+        signal.signal(signal.SIGTERM, self._handle_timeout)
+        signal.signal(signal.SIGINT, self._handle_timeout)
+        
+        # Register emergency flush on any exit
+        import atexit
+        atexit.register(self._emergency_save)
+        
+        print("Signal handlers registered for graceful shutdown")
+
+    def _handle_timeout(self, signum, frame):
+        """Called when job is about to be killed by scheduler (e.g., SLURM timeout)"""
+        print("\n" + "="*80)
+        print("RECEIVED TERMINATION SIGNAL! Performing emergency save...")
+        print("="*80)
+        self._emergency_save()
+        print("Emergency save complete! Exiting gracefully.")
+        sys.exit(0)
+    
+    def _emergency_save(self):
+        """Emergency save function - flushes all data and saves model"""
+        try:
+            print("Flushing TensorBoard data...")
+            self.writer.flush()
+            
+            print("Saving model checkpoint...")
+            self.save_model()
+            
+            print("Saving training statistics...")
+            self.save_rewards()
+            
+            # Force filesystem sync on HPC
+            try:
+                os.sync()
+                print("Filesystem synced")
+            except:
+                pass
+                
+        except Exception as e:
+            print(f"Error during emergency save: {e}")
 
     def train(self):
         self.save_sampled_agent_seq(0)
         obs = self.envs.reset()
         self.buffer.to(self.device)
         self.start = time.time()
+
+        # Create single progress bar for all iterations
+        pbar = tqdm(
+            total=cfg.PPO.MAX_ITERS,
+            desc="Training",
+            unit="iter",
+            ncols=120
+        )
 
         for cur_iter in range(cfg.PPO.MAX_ITERS):
 
@@ -108,11 +163,30 @@ class PPO:
             self.save_sampled_agent_seq(cur_iter)
 
             self.train_meter.update_mean()
+            
+            # Prepare postfix info for progress bar
+            postfix_dict = {}
+            
             if len(self.train_meter.mean_ep_rews["reward"]):
                 cur_rew = self.train_meter.mean_ep_rews["reward"][-1]
                 self.writer.add_scalar(
                     'Reward', cur_rew, self.env_steps_done(cur_iter)
                 )
+                # Flush after every reward write to ensure data is saved
+                self.writer.flush()
+                postfix_dict['rew'] = f'{cur_rew:.2f}'
+            
+            # Add FPS and other metrics to progress bar
+            env_steps = self.env_steps_done(cur_iter)
+            elapsed = time.time() - self.start
+            current_fps = int(env_steps / elapsed) if elapsed > 0 else 0
+            postfix_dict['FPS'] = current_fps
+            postfix_dict['steps'] = f'{env_steps/1e6:.1f}M'
+            postfix_dict['lr'] = f'{lr:.2e}'
+            
+            pbar.set_postfix(postfix_dict)
+            pbar.update(1)
+                
             if (
                 cur_iter > 0
                 and cur_iter % cfg.LOG_PERIOD == 0
@@ -120,8 +194,18 @@ class PPO:
             ):
                 self._log_stats(cur_iter)
                 self.save_model()
+                # Force flush and sync on HPC systems
+                self.writer.flush()
+                try:
+                    os.sync()
+                except:
+                    pass
 
-        print("Finished Training: {}".format(self.file_prefix))
+        pbar.close()
+        tqdm.write("Finished Training: {}".format(self.file_prefix))
+        # Final save
+        self.save_model()
+        self.save_rewards()
 
     def train_on_batch(self, cur_iter):
         adv = self.buffer.ret - self.buffer.val
@@ -199,6 +283,7 @@ class PPO:
         if not path:
             path = os.path.join(cfg.OUT_DIR, self.file_prefix + ".pt")
         torch.save([self.actor_critic, get_ob_rms(self.envs)], path)
+        tqdm.write(f"Model saved to: {path}")
 
     def _log_stats(self, cur_iter):
         self._log_fps(cur_iter)
@@ -209,7 +294,7 @@ class PPO:
         end = time.time()
         self.fps = int(env_steps / (end - self.start))
         if log:
-            print(
+            tqdm.write(
                 "Updates {}, num timesteps {}, FPS {}".format(
                     cur_iter, env_steps, self.fps
                 )
@@ -227,6 +312,7 @@ class PPO:
         stats = self.train_meter.get_stats()
         stats["fps"] = self.fps
         fu.save_json(stats, path)
+        tqdm.write(f"Results saved to: {path}")
 
         # Save hparams when sweeping
         if hparams:

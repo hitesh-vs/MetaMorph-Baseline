@@ -1,0 +1,8 @@
+README.md
+setup.py
+metamorph/config.py
+metamorph/yacs.py
+metamorph.egg-info/PKG-INFO
+metamorph.egg-info/SOURCES.txt
+metamorph.egg-info/dependency_links.txt
+metamorph.egg-info/top_level.txt

@@ -1,0 +1,13 @@
+logs/
+output/
+unimals_100/
+videos/
+rollouts.pkl
+trajectories.pkl
+trajectories2.pkl
+unimals_100.zip
+
+*.pyc
+*.TXT
+
+

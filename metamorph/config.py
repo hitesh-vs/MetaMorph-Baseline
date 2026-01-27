@@ -62,7 +62,7 @@ _C.ENV.STAND_HEIGHT_RATIO = 0.5
 _C.ENV.MODULES = ["Floor", "Agent"]
 
 # Agent name if you are not using unimal but want to still use the unimal env
-_C.ENV.WALKER_DIR = "./output/unimals_100/train"
+_C.ENV.WALKER_DIR = "./unimals_100/train"
 
 # Agent name if you are not using unimal but want to still use the unimal env
 _C.ENV.WALKERS = []
