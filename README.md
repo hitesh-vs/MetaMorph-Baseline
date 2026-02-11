@@ -34,3 +34,10 @@ In our code base, we further provide support for PPO training on these classical
 
 ## Acknowledgements
 This repo is built upon the [MetaMorph](https://github.com/agrimgupta92/metamorph/tree/main) code base. 
+
+## Note for Reference
+Incase of working with both metamorph and modumorph in the same root directory, set pythonpath for ModuMorph to look within the ModuMorph directory itself using
+
+``` 
+export PYTHONPATH=/home/sviswasam/dr/ModuMorph:$PYTHONPATH
+```

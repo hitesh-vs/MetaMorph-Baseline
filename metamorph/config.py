@@ -397,6 +397,7 @@ _C.MODEL.TYPE = 'transformer'
 _C.MODEL.MLP = CN()
 _C.MODEL.MLP.HIDDEN_DIM = 256
 _C.MODEL.MLP.LAYER_NUM = 3
+_C.MODEL.MLP.CONSISTENT_PADDING = None
 
 # hyperparameters for transformers
 _C.MODEL.TRANSFORMER = CN()
@@ -515,7 +516,7 @@ _C.CFG_DEST = "config.yaml"
 _C.RNG_SEED = 1
 
 # Name of the environment used for experience collection
-_C.ENV_NAME = "Unimal-v0"
+_C.ENV_NAME = "Modular-v0"
 
 # Use GPU
 _C.DEVICE = "cuda:0"

@@ -3,7 +3,11 @@ log*/
 
 .vscode/
 unimals_100
-test*
+
 
 output/*
 *.egg-info
+
+*.pkl
+output_copy/*
+eval/*

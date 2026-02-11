@@ -1,0 +1,8 @@
+{
+  "symmetric_limbs": [
+    "right_lower_arm",
+    "right_upper_arm"
+  ],
+  "dof": 6,
+  "num_limbs": 7
+}
