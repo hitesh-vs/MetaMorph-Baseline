@@ -9,12 +9,7 @@ output/*
 *.egg-info
 
 videos/*
-<<<<<<< Updated upstream
-
-videos/*
 
 *.pkl
 output_copy/*
 eval/*
-=======
->>>>>>> Stashed changes
