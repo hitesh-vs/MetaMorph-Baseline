@@ -1,24 +1,21 @@
 import os
-os.environ['MUJOCO_GL'] = 'glfw'  # Use GLFW for local rendering with display
-os.environ['CUDA_VISIBLE_DEVICES'] = ''  # Force CPU
-
 import pickle
 import numpy as np
 import torch
 import imageio
+import argparse
+
+# Set environment variables before imports that might initialize MuJoCo
+os.environ['MUJOCO_GL'] = 'glfw'  # Use GLFW for local rendering with display
+os.environ['CUDA_VISIBLE_DEVICES'] = ''  # Force CPU
+
 from metamorph.config import cfg
 from metamorph.algos.ppo.envs import make_vec_envs, set_ob_rms
-
 from tools.train_ppo import register_modular_envs, set_cfg_options
 
 def replay_trajectories_to_video(trajectory_file, output_dir='videos', fps=30):
     """
     Load saved trajectories and render them as videos
-    
-    Args:
-        trajectory_file: Path to the .pkl file with saved trajectories
-        output_dir: Directory to save videos
-        fps: Frames per second for output videos
     """
     os.makedirs(output_dir, exist_ok=True)
     
@@ -33,12 +30,11 @@ def replay_trajectories_to_video(trajectory_file, output_dir='videos', fps=30):
     
     print(f"Loaded {len(episodes)} episodes for agent: {agent_name}")
     
-    # Load config
-    cfg.merge_from_file('./output/config.yaml')
-    cfg.DEVICE = 'cpu'
+    # Finalize config for rendering
     cfg.ENV.WALKERS = [agent_name]
     cfg.PPO.NUM_ENVS = 1
     cfg.VECENV.TYPE = "DummyVecEnv"
+    cfg.DEVICE = 'cpu'
     
     set_cfg_options()
     register_modular_envs()
@@ -71,6 +67,7 @@ def replay_trajectories_to_video(trajectory_file, output_dir='videos', fps=30):
         env.reset()
         
         # Get the actual mujoco sim object
+        # Note: structure might vary slightly depending on your specific gym wrapper stack
         sim = env.envs[0].env.env.sim
         
         # Replay each state
@@ -79,19 +76,19 @@ def replay_trajectories_to_video(trajectory_file, output_dir='videos', fps=30):
             sim.data.qpos[:] = state['qpos']
             sim.data.qvel[:] = state['qvel']
             
-            # Forward the simulation to update visualization
+            # Forward the simulation to update positions/visuals
             sim.forward()
             
             # Render frame
             try:
                 frame = env.render(mode='rgb_array')
+                # Flip frame if it comes out upside down (common in MuJoCo/OpenGL)
                 frame = frame[::-1]
                 frames.append(frame)
             except Exception as e:
                 print(f"  ✗ Rendering error at frame {state_idx}: {e}")
                 break
             
-            # Progress update
             if (state_idx + 1) % 100 == 0:
                 print(f"  Rendered {state_idx + 1}/{len(states)} frames")
         
@@ -101,30 +98,39 @@ def replay_trajectories_to_video(trajectory_file, output_dir='videos', fps=30):
             video_path = os.path.join(output_dir, video_filename)
             
             print(f"  Saving video: {video_filename}")
-            print(f"  Frames: {len(frames)}, Shape: {frames[0].shape}")
-            
             imageio.mimsave(video_path, frames, fps=fps, quality=8)
             print(f"  ✓ Saved: {video_path}\n")
         else:
             print(f"  ✗ No frames rendered for episode {ep_idx}\n")
     
     env.close()
-    
     print(f"\n{'=' * 60}")
     print(f"✓ All videos saved to {output_dir}/")
     print(f"{'=' * 60}\n")
 
 
 if __name__ == "__main__":
-    import argparse
-    
     parser = argparse.ArgumentParser(description='Replay saved trajectories as videos')
     parser.add_argument('trajectory_file', type=str, help='Path to .pkl trajectory file')
+    parser.add_argument('--walker-dir', type=str, help='Path to the directory containing walker XML files')
+    parser.add_argument('--config', type=str, default='./output/config.yaml', help='Path to config.yaml')
     parser.add_argument('--output-dir', type=str, default='videos', help='Output directory for videos')
     parser.add_argument('--fps', type=int, default=30, help='Frames per second')
     
     args = parser.parse_args()
     
+    # 1. Load base configuration
+    if os.path.exists(args.config):
+        cfg.merge_from_file(args.config)
+    else:
+        print(f"Warning: Config file {args.config} not found. Using defaults.")
+
+    # 2. Apply CLI Overrides
+    if args.walker_dir:
+        print(f"Overriding WALKER_DIR to: {args.walker_dir}")
+        cfg.ENV.WALKER_DIR = args.walker_dir
+    
+    # 3. Execute
     replay_trajectories_to_video(
         args.trajectory_file,
         output_dir=args.output_dir,
