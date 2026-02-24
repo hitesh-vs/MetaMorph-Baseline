@@ -116,7 +116,7 @@ class ModularEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
 def make_env(xml):
     env = ModularEnv(xml)
-    if cfg.MODEL.MLP.CONSISTENT_PADDING:
+    if getattr(cfg.MODEL.MLP, 'CONSISTENT_PADDING', False):
         env = ConsistentModularObservationPadding(env)
         env = ConsistentModularActionPadding(env)
     else:

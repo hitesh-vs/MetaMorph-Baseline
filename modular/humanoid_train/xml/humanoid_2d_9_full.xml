@@ -14,7 +14,7 @@
     </visual>
     <worldbody>
         <light cutoff="100" diffuse="1 1 1" dir="-1 -0 -1.5" directional="true" exponent="1" pos="0 0 1.3" specular=".1 .1 .1"/>
-        <geom conaffinity="1" condim="3" material="grid" name="floor" pos="0 0 0" size="20 20 0.125" type="plane" />
+        <geom conaffinity="1" condim="3" material="grid" name="floor" pos="0 0 0" size="100 100 0.125" type="plane" />
         <!-- <geom condim="3" material="MatPlane" name="floor" pos="0 0 0" size="10 10 0.125" type="plane"/>-->
         <body name="torso" pos="0 0 1.4">
             <camera name="tilted" mode="trackcom" pos="3.6 4 -0.2" xyaxes="1 -.9 0 0 0 -1"/>

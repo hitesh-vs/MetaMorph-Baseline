@@ -8,6 +8,8 @@ unimals_100
 output/*
 *.egg-info
 
+videos/*
+
 *.pkl
 output_copy/*
 eval/*
