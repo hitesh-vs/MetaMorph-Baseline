@@ -21,6 +21,18 @@ def set_cfg_options():
 
 
 def calculate_max_limbs_joints():
+    """
+    Calculate MAX_LIMBS and MAX_JOINTS based on robot type.
+    
+    LIMITATION FOR REAL URDFs: This function uses hardcoded string matching
+    on cfg.ENV.WALKER_DIR to determine padding sizes. This breaks when:
+    1. New robot URDFs don't match the hardcoded patterns
+    2. Robot names use different conventions
+    3. Multiple robot types are mixed
+    
+    RESEARCH NOTE: This is a key limitation you're addressing with learned
+    functional groupings - no more manual specification needed.
+    """
     if cfg.ENV_NAME == "Unimal-v0":
 
         num_joints, num_limbs = [], []
@@ -44,16 +56,29 @@ def calculate_max_limbs_joints():
         print (cfg.MODEL.MAX_JOINTS, cfg.MODEL.MAX_LIMBS)
     
     elif cfg.ENV_NAME == 'Modular-v0':
-        # hardcode this part
+        # HARDCODED ROBOT CONFIGURATIONS
+        # This is a key limitation: each new real URDF requires manual configuration
+        
         if 'hopper' in cfg.ENV.WALKER_DIR:
             cfg.MODEL.MAX_LIMBS = 5
             cfg.MODEL.MAX_JOINTS = 5
+            
         if 'walker' in cfg.ENV.WALKER_DIR:
             cfg.MODEL.MAX_LIMBS = 7
             cfg.MODEL.MAX_JOINTS = 7
+            
         if 'humanoid' in cfg.ENV.WALKER_DIR:
             cfg.MODEL.MAX_LIMBS = 9
             cfg.MODEL.MAX_JOINTS = 9
+        
+        # REAL URDF SUPPORT: Unitree G1 (12-DOF humanoid)
+        # Manual configuration required - demonstrates need for learned groupings
+        if 'unitree_g1' in cfg.ENV.WALKER_DIR or 'g1_12dof' in cfg.ENV.WALKER_DIR:
+            cfg.MODEL.MAX_LIMBS = 13  # pelvis + 12 actuated limbs
+            cfg.MODEL.MAX_JOINTS = 12  # 12 actuated joints (free joint not counted)
+            print(f"[Real URDF] Configured for Unitree G1: MAX_LIMBS=13, MAX_JOINTS=12")
+        
+        # Multi-robot training (requires consistent padding)
         if 'all' in cfg.ENV.WALKER_DIR:
             if cfg.MODEL.MLP.CONSISTENT_PADDING:
                 cfg.MODEL.MAX_LIMBS = 19
@@ -61,24 +86,11 @@ def calculate_max_limbs_joints():
             else:
                 cfg.MODEL.MAX_LIMBS = 9
                 cfg.MODEL.MAX_JOINTS = 9
-
-        # num_joints, num_limbs = [], []
-
-        # metadata_paths = []
-        # print (cfg.ENV.WALKERS)
-        # for agent in cfg.ENV.WALKERS:
-        #     metadata_paths.append(os.path.join(
-        #         cfg.ENV.WALKER_DIR, "metadata", "{}.json".format(agent)
-        #     ))
-
-        # for metadata_path in metadata_paths:
-        #     metadata = fu.load_json(metadata_path)
-        #     num_joints.append(metadata["dof"])
-        #     num_limbs.append(metadata["num_limbs"])
-
-        # # Add extra 1 for max_joints; needed for adding edge padding
-        # cfg.MODEL.MAX_LIMBS = max(num_limbs)
-        # cfg.MODEL.MAX_JOINTS = cfg.MODEL.MAX_LIMBS
+        
+        # Debug output to verify configuration
+        print(f"[Config] ENV.WALKER_DIR: {cfg.ENV.WALKER_DIR}")
+        print(f"[Config] MAX_LIMBS: {cfg.MODEL.MAX_LIMBS}, MAX_JOINTS: {cfg.MODEL.MAX_JOINTS}")
+        print(f"[Config] WALKERS: {cfg.ENV.WALKERS}")
 
 
 def calculate_max_iters():
@@ -112,12 +124,6 @@ def register_modular_envs():
     """register the MuJoCo envs with Gym and return the per-agent observation size and max action value (for modular policy training)"""
     # register each env
     for agent in cfg.ENV.WALKERS:
-        # create a copy of modular environment for custom xml model
-        # if not os.path.exists(os.path.join(ENV_DIR, "{}.py".format(env_name))):
-        #     # create a duplicate of gym environment file for each env (necessary for avoiding bug in gym)
-        #     copyfile(
-        #         BASE_MODULAR_ENV_PATH, "{}.py".format(os.path.join(ENV_DIR, env_name))
-        #     )
         xml = os.path.join(cfg.ENV.WALKER_DIR, 'xml', agent + '.xml')
         params = {"xml": os.path.abspath(xml)}
         try:
@@ -127,13 +133,10 @@ def register_modular_envs():
                 entry_point=f"modular.{agent}:make_env",
                 kwargs=params,
             )
-        except:
+            print(f"[Gym Registration] Registered {agent}-v0")
+        except Exception as e:
+            print(f"[Gym Registration] Failed to register {agent}-v0: {e}")
             continue
-    #     env = wrappers.IdentityWrapper(gym.make(f"{agent}-v0"))
-    #     # the following is the same for each env
-    #     agent_obs_size = env.agent_obs_size
-    #     max_action = env.max_action
-    # return agent_obs_size, max_action
 
 
 def get_hparams():
@@ -204,6 +207,11 @@ def ppo_train():
         torch.backends.cudnn.deterministic = cfg.CUDNN.DETERMINISTIC
 
     torch.set_num_threads(1)
+    
+    print("="*80)
+    print("STARTING PPO TRAINING")
+    print("="*80)
+    
     PPOTrainer = PPO()
     PPOTrainer.train()
     hparams = get_hparams()

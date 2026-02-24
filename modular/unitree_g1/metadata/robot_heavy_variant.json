@@ -1,0 +1,12 @@
+{
+  "symmetric_limbs": [
+    "left_ankle_pitch_link",
+    "left_ankle_roll_link",
+    "left_hip_pitch_link",
+    "left_hip_roll_link",
+    "left_hip_yaw_link",
+    "left_knee_link"
+  ],
+  "dof": 12,
+  "num_limbs": 13
+}

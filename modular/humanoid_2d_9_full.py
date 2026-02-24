@@ -74,6 +74,15 @@ class ModularEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         return full_obs.ravel()
 
     def step(self, a):
+        '''
+        Docstring for step, makes the robot move forward for given action
+        uses do_simulation method from mujoco env itself,which executes physics
+
+        :param self: Object defined using this class (the environment)
+        :param a: Action Value
+
+        returns the new state
+        '''
         posbefore = self.sim.data.qpos[0]
         self.do_simulation(a, self.frame_skip)
         posafter, height, ang = self.sim.data.qpos[0:3]

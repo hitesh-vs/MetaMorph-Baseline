@@ -105,6 +105,24 @@ class PPO:
 
                 self.train_meter.add_ep_info(infos)
 
+                # After line ~103 in ppo_fixed.py:
+                if cur_iter % 10 == 0 and step == 0:
+                    # Check if any episodes completed recently
+                    if len(cfg.ENV.WALKERS) == 1:
+                        agent_name = cfg.ENV.WALKERS[0]
+                        if agent_name in self.train_meter.agent_meters:
+                            meter = self.train_meter.agent_meters[agent_name]
+                            if isinstance(meter.ep_rew, dict) and 'reward' in meter.ep_rew:
+                                num_eps = len(meter.ep_rew['reward'])
+                                print(f"[Iter {cur_iter}] Episodes completed so far: {num_eps}")
+                                if num_eps > 0:
+                                    print(f"  Last 5 rewards: {meter.ep_rew['reward'][-5:]}")
+                                
+                # Debug: print what we're receiving (only once)
+                if cur_iter == 0 and step == 0:
+                    print("DEBUG: First info dict:", infos[0])
+                    print("DEBUG: TrainMeter agent keys:", list(self.train_meter.agent_meters.keys()))
+
                 masks = torch.tensor(
                     [[0.0] if done_ else [1.0] for done_ in done],
                     dtype=torch.float32,
@@ -243,6 +261,59 @@ class PPO:
     def _log_stats(self, cur_iter):
         self._log_fps(cur_iter)
         self.train_meter.log_stats()
+        
+        # ADDED: Force print stats for single agent setup
+        if len(cfg.ENV.WALKERS) == 1:
+            agent_name = cfg.ENV.WALKERS[0]
+            if agent_name in self.train_meter.agent_meters:
+                meter = self.train_meter.agent_meters[agent_name]
+                
+                # Handle different data structures (list vs defaultdict)
+                if hasattr(meter, 'ep_rew'):
+                    # Check if it's a defaultdict or list
+                    if isinstance(meter.ep_rew, dict):
+                        # It's a defaultdict with reward types as keys
+                        if 'reward' in meter.ep_rew and len(meter.ep_rew['reward']) > 0:
+                            rewards = meter.ep_rew['reward']
+                            mean_rew = np.mean(rewards)
+                            median_rew = np.median(rewards)
+                            min_rew = np.min(rewards)
+                            max_rew = np.max(rewards)
+                            num_eps = len(rewards)
+                            
+                            if 'reward' in meter.ep_len and len(meter.ep_len['reward']) > 0:
+                                mean_len = np.mean(meter.ep_len['reward'])
+                            else:
+                                mean_len = 0
+                            
+                            print(f"Agent {agent_name}: mean/median reward {mean_rew:.0f}/{median_rew:.0f}, "
+                                  f"min/max reward {min_rew:.0f}/{max_rew:.0f}, "
+                                  f"#Ep: {num_eps}, avg Ep len: {mean_len:.0f}")
+                    elif len(meter.ep_rew) > 0:
+                        # It's a regular list
+                        mean_rew = np.mean(meter.ep_rew)
+                        median_rew = np.median(meter.ep_rew)
+                        min_rew = np.min(meter.ep_rew)
+                        max_rew = np.max(meter.ep_rew)
+                        num_eps = len(meter.ep_rew)
+                        mean_len = np.mean(meter.ep_len) if len(meter.ep_len) > 0 else 0
+                        print(f"Agent {agent_name}: mean/median reward {mean_rew:.0f}/{median_rew:.0f}, "
+                              f"min/max reward {min_rew:.0f}/{max_rew:.0f}, "
+                              f"#Ep: {num_eps}, avg Ep len: {mean_len:.0f}")
+            else:
+                print(f"WARNING: Agent {agent_name} not found in TrainMeter. Available agents: {list(self.train_meter.agent_meters.keys())}")
+        
+        # Also print aggregate stats if available
+        if hasattr(self.train_meter, 'env_meter'):
+            env_meter = self.train_meter.env_meter
+            if hasattr(env_meter, 'ep_rew'):
+                if isinstance(env_meter.ep_rew, dict):
+                    if 'reward' in env_meter.ep_rew and len(env_meter.ep_rew['reward']) > 0:
+                        mean_rew = np.mean(env_meter.ep_rew['reward'])
+                        print(f"Agent __env__: mean reward {mean_rew:.0f}")
+                elif len(env_meter.ep_rew) > 0:
+                    mean_rew = np.mean(env_meter.ep_rew)
+                    print(f"Agent __env__: mean reward {mean_rew:.0f}")
 
     def _log_fps(self, cur_iter, log=True):
         env_steps = self.env_steps_done(cur_iter)

@@ -10,8 +10,8 @@
 #SBATCH --mem 16G
 #SBATCH --job-name="eval"
 
-#SBATCH --output=/home/sviswasam/dr/ModuMorph/logs/output_test.log
-#SBATCH --error=/home/sviswasam/dr/ModuMorph/logs/err_test.err
+#SBATCH --output=/home/sviswasam/dr/ModuMorph/logs/output_test_g1.log
+#SBATCH --error=/home/sviswasam/dr/ModuMorph/logs/err_test_g1.err
 
 # --- START MUJOCO CONFIG ---
 # 1. Load Modules
@@ -53,4 +53,7 @@ export PYTHONPATH=/home/sviswasam/dr/ModuMorph:$PYTHONPATH
 # Activate env
 source /home/sviswasam/dr/modumorph_env/bin/activate
 
-python tools/evaluate.py --policy_path "/home/sviswasam/dr/ModuMorph/output_copy" --policy_name Modular-v0 --seed 1409 --test_folder "/home/sviswasam/dr/ModuMorph/modular/humanoid_test"
+# Delete the eval folder so that evaluate.py can create a new one for this test
+if [ -d "eval/" ]; then rm -rf eval/; fi
+
+python tools/evaluate.py --policy_path "/home/sviswasam/dr/ModuMorph/output_basic4_copy" --policy_name Modular-v0 --seed 1409 --test_folder "/home/sviswasam/dr/ModuMorph/modular/unitree_g1_train"

@@ -1,0 +1,10 @@
+{
+  "symmetric_limbs": [
+    "right_lower_arm",
+    "right_shin",
+    "right_thigh",
+    "right_upper_arm"
+  ],
+  "dof": 8,
+  "num_limbs": 9
+}
