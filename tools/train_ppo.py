@@ -12,6 +12,7 @@ from metamorph.config import dump_cfg
 from metamorph.utils import file as fu
 from metamorph.utils import sample as su
 from metamorph.utils import sweep as swu
+from metamorph.utils.xml_utils import strip_unsupported_attrs
 
 
 def set_cfg_options():
@@ -110,10 +111,12 @@ def maybe_infer_walkers():
     # Only infer the walkers if this option was not specified
     if len(cfg.ENV.WALKERS):
         return
-
+    
+    xml_dir = os.path.join(cfg.ENV.WALKER_DIR, "xml")
     cfg.ENV.WALKERS = [
-        xml_file.split(".")[0]
-        for xml_file in os.listdir(os.path.join(cfg.ENV.WALKER_DIR, "xml"))
+        f[:-4]                              # strip .xml
+        for f in os.listdir(xml_dir)
+        if f.endswith(".xml") and not f.endswith("_stripped.xml")
     ]
 
     if cfg.ENV_NAME == 'Modular-v0':
@@ -125,7 +128,12 @@ def register_modular_envs():
     # register each env
     for agent in cfg.ENV.WALKERS:
         xml = os.path.join(cfg.ENV.WALKER_DIR, 'xml', agent + '.xml')
-        params = {"xml": os.path.abspath(xml)}
+        xml_abs = os.path.abspath(xml)
+        
+        # Strip incompatible attrs once here, before any subprocess sees it
+        clean_xml = strip_unsupported_attrs(xml_abs)
+        
+        params = {"xml": clean_xml}   # ← pass the stripped path directly
         try:
             register(
                 id=f"{agent}-v0",
@@ -133,7 +141,6 @@ def register_modular_envs():
                 entry_point=f"modular.{agent}:make_env",
                 kwargs=params,
             )
-            print(f"[Gym Registration] Registered {agent}-v0")
         except Exception as e:
             print(f"[Gym Registration] Failed to register {agent}-v0: {e}")
             continue

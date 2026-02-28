@@ -12,6 +12,7 @@ from metamorph.utils import model as tu
 
 from .transformer import TransformerEncoder
 from .transformer import TransformerEncoderLayerResidual
+from .gcn import build_gcn_from_cfg   # ← NEW
 
 import time
 import matplotlib.pyplot as plt
@@ -200,6 +201,23 @@ class TransformerModel(nn.Module):
         if self.model_args.USE_SWAT_PE:
             self.swat_PE_encoder = SWATPEEncoder(self.d_model, self.seq_len)
 
+        # ── GCN structural embedding (only when GRAPH_ENCODING != "none") ──
+        # Injected AFTER limb_embed so raw obs shape is never touched.
+        # This avoids any conflict with hnet / PER_NODE_EMBED sizing.
+        #
+        # Architecture:
+        #   obs  →  limb_embed  →  obs_embed (d_model)
+        #                               ↓  ← added here
+        #   graph  →  GCN  →  gcn_embed (gcn_out_dim)
+        #                               ↓
+        #             gcn_proj  →  d_model   (projects to same dim, then added)
+        #                               ↓
+        #            obs_embed + gcn_proj_out  →  transformer
+        #
+        # gcn is passed in from ActorCritic (shared weights between v_net & mu_net)
+        self.gcn = None          # set externally by ActorCritic after construction
+        self.gcn_proj = None     # set externally by ActorCritic after construction
+
         self.dropout = nn.Dropout(p=0.1)
 
         self.init_weights()
@@ -283,6 +301,22 @@ class TransformerModel(nn.Module):
         if self.model_args.EMBEDDING_SCALE: # default to true
             obs_embed *= math.sqrt(self.d_model)
 
+        # ── GCN injection ─────────────────────────────────────────────────
+        # Runs after limb_embed so raw obs/hnet sizing is unaffected.
+        # obs_embed shape: (seq_len, batch, d_model)
+        # graph data lives in morphology_info, passed from ActorCritic.forward
+        if self.gcn is not None and morphology_info is not None:
+            X      = morphology_info.get('graph_node_features')   # (batch, MAX_LIMBS, feat_dim)
+            A_norm = morphology_info.get('graph_A_norm')          # (batch, MAX_LIMBS, MAX_LIMBS)
+            if X is not None and A_norm is not None:
+                # GCN forward: (batch, N, feat_dim) → (batch, N, gcn_out_dim)
+                gcn_emb = self.gcn(X.float(), A_norm.float())
+                # Permute to (seq_len, batch, gcn_out_dim) to match obs_embed layout
+                gcn_emb = gcn_emb.permute(1, 0, 2)
+                # Project to d_model and add residually
+                obs_embed = obs_embed + self.gcn_proj(gcn_emb)
+        # ──────────────────────────────────────────────────────────────────
+
         attention_maps = None
 
         # add PE
@@ -294,7 +328,6 @@ class TransformerModel(nn.Module):
         # dropout
         if self.model_args.EMBEDDING_DROPOUT:
             if self.model_args.CONSISTENT_DROPOUT:
-                # do dropout in a consistent way. Refer to Appendix in the paper
                 if dropout_mask is None:
                     obs_embed_after_dropout = self.dropout(obs_embed)
                     dropout_mask = torch.where(obs_embed_after_dropout == 0., 0., 1.).permute(1, 0, 2)
@@ -302,11 +335,9 @@ class TransformerModel(nn.Module):
                 else:
                     obs_embed = obs_embed * dropout_mask.permute(1, 0, 2) / 0.9
             else:
-                # do dropout in an inconsistent way, as in MetaMorph
                 obs_embed = self.dropout(obs_embed)
                 dropout_mask = 0.
         else:
-            # do not do dropout
             dropout_mask = 0.
 
         if self.model_args.FIX_ATTENTION:
@@ -329,7 +360,6 @@ class TransformerModel(nn.Module):
                 morphology_info=morphology_info
             )
         else:
-            # (num_limbs, batch_size, d_model)
             obs_embed_t = self.transformer_encoder(
                 obs_embed, 
                 mask=attn_mask, 
@@ -342,7 +372,6 @@ class TransformerModel(nn.Module):
         if "hfield" in cfg.ENV.KEYS_TO_KEEP and self.ext_feat_fusion == "late":
             decoder_input = torch.cat([decoder_input, hfield_obs], axis=2)
 
-        # (num_limbs, batch_size, J)
         if self.model_args.HYPERNET and self.model_args.HN_DECODER:
             output = decoder_input
             layer_num = len(self.hnet_decoder_weight)
@@ -358,9 +387,7 @@ class TransformerModel(nn.Module):
             else:
                 output = self.decoder(decoder_input)
 
-        # (batch_size, num_limbs, J)
         output = output.permute(1, 0, 2)
-        # (batch_size, num_limbs * J)
         output = output.reshape(batch_size, -1)
 
         return output, attention_maps, dropout_mask
@@ -376,10 +403,6 @@ class PositionalEncoding(nn.Module):
             self.pe = nn.Parameter(torch.randn(seq_len, 1, d_model))
 
     def forward(self, x):
-        """
-        Args:
-            x: Tensor, shape [seq_len, batch_size, embedding_dim]
-        """
         x = x + self.pe
         return x
 
@@ -395,10 +418,6 @@ class SWATPEEncoder(nn.Module):
         self.swat_pe = nn.ModuleList([nn.Embedding(seq_len, dim) for dim in self.pe_dim])
 
     def forward(self, x, indexes):
-        """
-        Args:
-            x: Tensor, shape [seq_len, batch_size, embedding_dim]
-        """
         embeddings = []
         batch_size = x.size(1)
         for i in range(len(cfg.MODEL.TRANSFORMER.TRAVERSALS)):
@@ -427,10 +446,26 @@ class ActorCritic(nn.Module):
     def __init__(self, obs_space, action_space):
         super(ActorCritic, self).__init__()
         self.seq_len = cfg.MODEL.MAX_LIMBS
+        self.graph_encoding = cfg.MODEL.GRAPH_ENCODING  # "none" | "onehot" | "topological"
+
+        # ── GCN (shared between v_net and mu_net, trained end-to-end by PPO) ──
+        # Returns None for "none" baseline — zero code-path changes below.
+        self.gcn = build_gcn_from_cfg(cfg)
+        if self.gcn is not None:
+            print(f"[ActorCritic] GCN enabled: mode={self.graph_encoding}, "
+                  f"out_dim={cfg.MODEL.GCN.OUT_DIM}")
+
+        # IMPORTANT: The GCN embedding is injected into obs_embed space INSIDE
+        # TransformerModel (after limb_embed), NOT onto the raw obs tensor.
+        # This means obs_space["proprioceptive"] reflects the env's actual per-limb
+        # obs size (without limb_type_vec), and TransformerModel.__init__ sizes
+        # limb_embed correctly from that. The GCN adds a Linear projection on top
+        # of the embedding, so no shape mismatch with hnet or other components.
+        # obs_space is passed through unchanged.
+
         if cfg.MODEL.TYPE == 'transformer':
             self.v_net = TransformerModel(obs_space, 1)
         else:
-            # MLP network
             self.v_net = MLPModel(obs_space, cfg.MODEL.MAX_LIMBS)
 
         if cfg.ENV_NAME == "Unimal-v0":
@@ -448,6 +483,22 @@ class ActorCritic(nn.Module):
         else:
             raise ValueError("Unsupported ENV_NAME")
 
+        # ── Wire GCN into both transformer nets (shared weights) ──────────
+        # gcn_proj: Linear(gcn_out_dim → d_model) so GCN output can be added
+        # residually onto obs_embed without changing any other layer sizes.
+        # Both v_net and mu_net point to the SAME gcn and gcn_proj instances
+        # so there is one set of structural encoding weights updated by PPO.
+        if self.gcn is not None and cfg.MODEL.TYPE == 'transformer':
+            d_model = cfg.MODEL.LIMB_EMBED_SIZE
+            gcn_out = cfg.MODEL.GCN.OUT_DIM
+            self.gcn_proj = nn.Linear(gcn_out, d_model)   # registered as AC param
+            # Share references into both nets (not copies — same object)
+            self.v_net.gcn      = self.gcn
+            self.v_net.gcn_proj = self.gcn_proj
+            self.mu_net.gcn      = self.gcn
+            self.mu_net.gcn_proj = self.gcn_proj
+            print(f"[ActorCritic] GCN wired: gcn_out={gcn_out} → proj → d_model={d_model}")
+
         if cfg.MODEL.ACTION_STD_FIXED:
             log_std = np.log(cfg.MODEL.ACTION_STD)
             self.log_std = nn.Parameter(
@@ -456,8 +507,12 @@ class ActorCritic(nn.Module):
         else:
             self.log_std = nn.Parameter(torch.zeros(1, self.num_actions))
 
-    def forward(self, obs, act=None, return_attention=False, dropout_mask_v=None, dropout_mask_mu=None, unimal_ids=None, compute_val=True):
-                
+    # ── Forward ───────────────────────────────────────────────────────────────
+
+    def forward(self, obs, act=None, return_attention=False,
+                dropout_mask_v=None, dropout_mask_mu=None,
+                unimal_ids=None, compute_val=True):
+
         if act is not None:
             batch_size = cfg.PPO.BATCH_SIZE
         else:
@@ -469,62 +524,64 @@ class ActorCritic(nn.Module):
         else:
             obs_cm_mask = None
         obs_dict = obs
+
+        # Raw proprioceptive obs — NOT augmented here.
+        # GCN runs inside TransformerModel after limb_embed (see TransformerModel.forward).
         obs, obs_mask, act_mask, obs_context, edges = (
             obs["proprioceptive"],
             obs["obs_padding_mask"],
             obs["act_padding_mask"],
-            obs["context"], 
-            obs["edges"], 
+            obs["context"],
+            obs["edges"],
         )
 
         morphology_info = {}
         if cfg.MODEL.TRANSFORMER.USE_SWAT_PE:
-            # (batch_size, seq_len, traversal_num) ->(seq_len, batch_size, traversal_num)
             morphology_info['traversals'] = obs_dict['traversals'].permute(1, 0, 2).long()
         if cfg.MODEL.TRANSFORMER.USE_SWAT_RE:
-            # (batch_size, seq_len, traversal_num) ->(seq_len, batch_size, traversal_num)
             morphology_info['SWAT_RE'] = obs_dict['SWAT_RE']
-        
+
+        # ── Pass graph data for GCN injection inside TransformerModel ─────
+        if self.gcn is not None:
+            morphology_info['graph_node_features'] = obs_dict['graph_node_features']
+            morphology_info['graph_A_norm']        = obs_dict['graph_A_norm']
+
         if len(morphology_info.keys()) == 0:
             morphology_info = None
 
         obs_mask = obs_mask.bool()
         act_mask = act_mask.bool()
 
-        # reshape the obs for transformer input
+        # reshape for transformer
         if cfg.MODEL.TYPE == 'transformer':
-            obs = obs.reshape(batch_size, self.seq_len, -1).permute(1, 0, 2)
+            obs         = obs.reshape(batch_size, self.seq_len, -1).permute(1, 0, 2)
             obs_context = obs_context.reshape(batch_size, self.seq_len, -1).permute(1, 0, 2)
 
-        # do not need to compute value function during evaluation to save time
         if compute_val:
-            # Per limb critic values
             limb_vals, v_attention_maps, dropout_mask_v = self.v_net(
-                obs, obs_mask, obs_env, obs_cm_mask, obs_context, morphology_info, 
-                return_attention=return_attention, dropout_mask=dropout_mask_v, 
-                unimal_ids=unimal_ids, 
+                obs, obs_mask, obs_env, obs_cm_mask, obs_context, morphology_info,
+                return_attention=return_attention, dropout_mask=dropout_mask_v,
+                unimal_ids=unimal_ids,
             )
-            # Zero out mask values
             limb_vals = limb_vals * (1 - obs_mask.int())
-            # Use avg/max to keep the magnitidue same instead of sum
             num_limbs = self.seq_len - torch.sum(obs_mask.int(), dim=1, keepdim=True)
             val = torch.divide(torch.sum(limb_vals, dim=1, keepdim=True), num_limbs)
         else:
             val, v_attention_maps, dropout_mask_v = 0., None, 0.
 
         mu, mu_attention_maps, dropout_mask_mu = self.mu_net(
-            obs, obs_mask, obs_env, obs_cm_mask, obs_context, morphology_info, 
-            return_attention=return_attention, dropout_mask=dropout_mask_mu, 
-            unimal_ids=unimal_ids, 
+            obs, obs_mask, obs_env, obs_cm_mask, obs_context, morphology_info,
+            return_attention=return_attention, dropout_mask=dropout_mask_mu,
+            unimal_ids=unimal_ids,
         )
         std = torch.exp(self.log_std)
-        pi = Normal(mu, std)
+        pi  = Normal(mu, std)
 
         if act is not None:
             logp = pi.log_prob(act)
             logp[act_mask] = 0.0
             self.limb_logp = logp
-            logp = logp.sum(-1, keepdim=True)
+            logp    = logp.sum(-1, keepdim=True)
             entropy = pi.entropy()
             entropy[act_mask] = 0.0
             entropy = entropy.mean()

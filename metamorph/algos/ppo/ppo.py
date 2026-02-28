@@ -116,7 +116,8 @@ class PPO:
                                 num_eps = len(meter.ep_rew['reward'])
                                 print(f"[Iter {cur_iter}] Episodes completed so far: {num_eps}")
                                 if num_eps > 0:
-                                    print(f"  Last 5 rewards: {meter.ep_rew['reward'][-5:]}")
+                                    rewards = list(meter.ep_rew['reward'])
+                                    print(f"  Last 5 rewards: {rewards[-5:]}")
                                 
                 # Debug: print what we're receiving (only once)
                 if cur_iter == 0 and step == 0:
@@ -395,8 +396,6 @@ class PPO:
         if cfg.ENV.TASK_SAMPLING == "uniform_random_strategy":
             ep_lens = [1000] * num_agents
         elif cfg.ENV.TASK_SAMPLING == "balanced_replay_buffer":
-            # For a first couple of iterations do uniform sampling to ensure
-            # we have good estimate of ep_lens
             if cur_iter < 30:
                 ep_lens = [1000] * num_agents
             else:
@@ -411,20 +410,27 @@ class PPO:
                         for agent in cfg.ENV.WALKERS
                     ]
 
+                # ── GUARD: replace nan/zero/inf with fallback of 1000 ──────────
+                # Happens when an agent has completed no episodes yet in this window
+                # (e.g. it was sampled rarely, or ep_len list is empty)
+                ep_lens = [
+                    l if (l is not None and np.isfinite(l) and l > 0) else 1000.0
+                    for l in ep_lens
+                ]
+
         probs = [1000.0 / l for l in ep_lens]
         probs = np.power(probs, cfg.TASK_SAMPLING.PROB_ALPHA)
-        probs = [p / sum(probs) for p in probs]
+        probs = np.array(probs)
+        probs = probs / probs.sum()   # ← use numpy sum, not Python sum, for safety
 
-        # Estimate approx number of episodes each subproc env can rollout
         avg_ep_len = np.mean([
             np.mean(self.train_meter.agent_meters[agent].ep_len)
             for agent in cfg.ENV.WALKERS
         ])
-        # In the start the arrays will be empty
         if np.isnan(avg_ep_len):
             avg_ep_len = 100
+
         ep_per_env = cfg.PPO.TIMESTEPS / avg_ep_len
-        # Task list size (multiply by 8 as padding)
         size = int(ep_per_env * cfg.PPO.NUM_ENVS * 50)
         task_list = np.random.choice(range(0, num_agents), size=size, p=probs)
         task_list = [int(_) for _ in task_list]

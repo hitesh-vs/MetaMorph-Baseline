@@ -8,10 +8,10 @@
 #SBATCH --gres=gpu:L40S:1
 #SBATCH -t 23:59:00
 #SBATCH --mem 64G
-#SBATCH --job-name="test4"
+#SBATCH --job-name="top"
 
-#SBATCH --output=/home/sviswasam/dr/ModuMorph/logs/output_basic4.log
-#SBATCH --error=/home/sviswasam/dr/ModuMorph/logs/err_basic4.err
+#SBATCH --output=/home/sviswasam/dr/ModuMorph/logs/output_top4.log
+#SBATCH --error=/home/sviswasam/dr/ModuMorph/logs/err_top4.err
 
 # --- START MUJOCO CONFIG ---
 # 1. Load Modules
@@ -54,13 +54,15 @@ export PYTHONPATH=/home/sviswasam/dr/ModuMorph:$PYTHONPATH
 source /home/sviswasam/dr/modumorph_env/bin/activate
 
 python -u tools/train_ppo.py --cfg ./configs/ft_g1.yaml \
-    OUT_DIR ./output_basic4 \
-    ENV.WALKER_DIR ./modular/unitree_g1_train \
+    OUT_DIR ./output_top4_new \
+    ENV.WALKER_DIR ./modular/unitree_g1_actual \
     RNG_SEED 1409 \
     LOG_PERIOD 10 \
     PPO.KL_TARGET_COEF 5. \
+    MODEL.FINETUNE.FULL_MODEL True \
     MODEL.TRANSFORMER.POS_EMBEDDING None \
     MODEL.TRANSFORMER.EMBEDDING_DROPOUT False \
     MODEL.TRANSFORMER.FIX_ATTENTION True \
     MODEL.TRANSFORMER.HYPERNET True \
-    MODEL.TRANSFORMER.CONTEXT_ENCODER linear | tee unitree_train3.log
+    MODEL.TRANSFORMER.CONTEXT_ENCODER linear \
+    MODEL.GRAPH_ENCODING topological | tee unitree_top4.log

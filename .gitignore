@@ -19,11 +19,4 @@ eval/*
 *.pt
 tensorboard/*
 
-output_basic2/*
-output_basic3/*
-output_base/*
-output_basic/*
-output_basic4/*
-output_basic4_copy/*
-output_unitree/*
-output_logs/*
+output_*/

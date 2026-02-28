@@ -33,9 +33,10 @@ class GCNLayer(nn.Module):
 
     Params: in_dim * out_dim + out_dim
     """
-    def __init__(self, in_dim: int, out_dim: int, activation: bool = True):
+    def __init__(self, in_dim, out_dim, activation=True):
         super().__init__()
         self.linear = nn.Linear(in_dim, out_dim)
+        self.norm = nn.LayerNorm(out_dim)
         self.use_activation = activation
 
     def forward(self, X: torch.Tensor, A_norm: torch.Tensor) -> torch.Tensor:
@@ -43,8 +44,9 @@ class GCNLayer(nn.Module):
         X:      (..., N, in_dim)
         A_norm: (N, N)  or  (..., N, N)
         """
-        out = A_norm @ X            # neighbor aggregation
-        out = self.linear(out)      # linear transform
+        AX = (A_norm @ X).detach()  # treat graph aggregation as fixed preprocessing
+        out = self.linear(AX)       # grad flows through linear weight/bias ✓
+        out = self.norm(out)
         if self.use_activation:
             out = F.relu(out)
         return out
@@ -67,20 +69,27 @@ class MorphologyGCN(nn.Module):
     per limb before the policy MLP head.
     """
 
-    def __init__(self, node_feat_dim: int, hidden_dim: int = 16, out_dim: int = 8):
+    # gcn.py - update MorphologyGCN.__init__
+    def __init__(self, node_feat_dim: int, hidden_dim: int = 16, out_dim: int = 8, num_layers: int = 2):
         super().__init__()
         self.out_dim = out_dim
-        self.gcn1 = GCNLayer(node_feat_dim, hidden_dim, activation=True)
-        self.gcn2 = GCNLayer(hidden_dim, out_dim, activation=False)
+        layers = []
+        in_dim = node_feat_dim
+        for i in range(num_layers - 1):
+            layers.append(GCNLayer(in_dim, hidden_dim, activation=True))
+            in_dim = hidden_dim
+        layers.append(GCNLayer(in_dim, out_dim, activation=False))
+        self.layers = nn.ModuleList(layers)
 
-    def forward(self, X: torch.Tensor, A_norm: torch.Tensor) -> torch.Tensor:
+    def forward(self, X, A_norm):
         """
         X:      (batch, N, node_feat_dim)  or  (N, node_feat_dim)
         A_norm: (N, N)
         Returns (batch, N, out_dim)        or  (N, out_dim)
         """
-        h = self.gcn1(X, A_norm)
-        h = self.gcn2(h, A_norm)
+        h = X
+        for layer in self.layers:
+            h = layer(h, A_norm)
         return h
 
     # ------------------------------------------------------------------
@@ -130,4 +139,5 @@ def build_gcn_from_cfg(cfg) -> "MorphologyGCN | None":
         node_feat_dim=feat_dim,
         hidden_dim=cfg.MODEL.GCN.HIDDEN_DIM,
         out_dim=cfg.MODEL.GCN.OUT_DIM,
+        num_layers=cfg.MODEL.GCN.NUM_LAYERS,
     )

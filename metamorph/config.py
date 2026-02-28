@@ -256,7 +256,7 @@ _C.PPO.EPOCHS = 8
 _C.PPO.BATCH_SIZE = 5120
 
 # Value (critic) loss term coefficient
-_C.PPO.VALUE_COEF = 0.5
+_C.PPO.VALUE_COEF = 0.2
 
 # If KL divergence between old and new policy exceeds KL_TARGET_COEF * 0.01
 # stop updates. Default value is high so that it's not used by default.
@@ -467,6 +467,28 @@ _C.MODEL.TRANSFORMER.USE_SWAT_RE = False
 # test per-node embed and decode
 _C.MODEL.TRANSFORMER.PER_NODE_EMBED = False
 _C.MODEL.TRANSFORMER.PER_NODE_DECODER = False
+
+# --------------------------------------------------------------------------- #
+# Graph Network Options
+# --------------------------------------------------------------------------- #
+# Graph encoding mode for ablation experiments.
+# Controls both the env (what obs keys are returned) and
+# the model (whether a GCN is instantiated and how big it is).
+#
+# Values:
+#   "none"         — baseline, no GCN.
+#                    Obs includes 6-dim one-hot limb_type_vec (original behaviour).
+#   "onehot"       — GCN with name-heuristic one-hot node features (7 dim, fixed vocab).
+#                    Tests whether GCN helps at all.
+#   "topological"  — GCN with topology-only features (6 dim).
+#                    Tests whether semantic labels are necessary.
+_C.MODEL.GRAPH_ENCODING = "none"
+
+# GCN architecture hyperparams (only used when GRAPH_ENCODING != "none")
+_C.MODEL.GCN = CN()
+_C.MODEL.GCN.HIDDEN_DIM = 16   # hidden layer width
+_C.MODEL.GCN.OUT_DIM    = 13    # embedding dim concatenated onto prop obs per limb
+_C.MODEL.GCN.NUM_LAYERS = 4 # Number of GCN layers
 
 # --------------------------------------------------------------------------- #
 # Finetuning Options

@@ -10,8 +10,8 @@
 #SBATCH --mem 16G
 #SBATCH --job-name="video"
 
-#SBATCH --output=/home/sviswasam/dr/ModuMorph/logs/output_video_g1.log
-#SBATCH --error=/home/sviswasam/dr/ModuMorph/logs/err_video_g1.err
+#SBATCH --output=/home/sviswasam/dr/ModuMorph/logs/output_video_act2.log
+#SBATCH --error=/home/sviswasam/dr/ModuMorph/logs/err_video_act2.err
 
 # --- START MUJOCO CONFIG ---
 # 1. Load Modules
@@ -53,4 +53,4 @@ export PYTHONPATH=/home/sviswasam/dr/ModuMorph:$PYTHONPATH
 # Activate env
 source /home/sviswasam/dr/modumorph_env/bin/activate
 
-python tools/render_video.py --agent g1_12dof --policy_path output_basic4_copy/1409 --agent_path modular/unitree_g1_train --num_episodes 10
+python tools/render_video.py --agent g1_12dof --policy_path output_top4_copy/1409 --agent_path modular/unitree_g1_actual_test --num_episodes 10
