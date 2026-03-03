@@ -105,6 +105,17 @@ class PPO:
 
                 self.train_meter.add_ep_info(infos)
 
+                # Log per-component rewards to TensorBoard when episodes complete
+                for info in infos:
+                    if 'episode' in info:
+                        name = info['name']
+                        env_steps = self.env_steps_done(cur_iter)
+                        for key, val in info['episode'].items():
+                            if key.startswith('rew/') or key == 'mean_forward_vel':
+                                self.writer.add_scalar(
+                                    f'{name}/{key}', val, env_steps
+                                )
+
                 # After line ~103 in ppo_fixed.py:
                 if cur_iter % 10 == 0 and step == 0:
                     # Check if any episodes completed recently
