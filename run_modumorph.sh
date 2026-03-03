@@ -8,10 +8,10 @@
 #SBATCH --gres=gpu:L40S:1
 #SBATCH -t 23:59:00
 #SBATCH --mem 64G
-#SBATCH --job-name="top"
+#SBATCH --job-name="ph2"
 
-#SBATCH --output=/home/sviswasam/dr/ModuMorph/logs/output_top4.log
-#SBATCH --error=/home/sviswasam/dr/ModuMorph/logs/err_top4.err
+#SBATCH --output=/home/sviswasam/dr/ModuMorph/logs/output_top4_ph2.log
+#SBATCH --error=/home/sviswasam/dr/ModuMorph/logs/err_top4_ph2.err
 
 # --- START MUJOCO CONFIG ---
 # 1. Load Modules
@@ -54,11 +54,12 @@ export PYTHONPATH=/home/sviswasam/dr/ModuMorph:$PYTHONPATH
 source /home/sviswasam/dr/modumorph_env/bin/activate
 
 python -u tools/train_ppo.py --cfg ./configs/ft_g1.yaml \
-    OUT_DIR ./output_top4_new \
+    OUT_DIR ./output_top4_ph2 \
     ENV.WALKER_DIR ./modular/unitree_g1_actual \
     RNG_SEED 1409 \
     LOG_PERIOD 10 \
     PPO.KL_TARGET_COEF 5. \
+    PPO.CHECKPOINT_PATH "/home/sviswasam/dr/ModuMorph/output_top4_ph1_copy/1409/Modular-v0.pt" \
     MODEL.FINETUNE.FULL_MODEL True \
     MODEL.TRANSFORMER.POS_EMBEDDING None \
     MODEL.TRANSFORMER.EMBEDDING_DROPOUT False \

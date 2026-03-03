@@ -511,11 +511,11 @@ class ModularEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         Penalise tilt using projected gravity proxy.
         projected_gravity_x ≈ sin(pitch), projected_gravity_y ≈ sin(roll).
         """
-        return -1.0 * DT * float(np.sin(pitch)**2 + np.sin(roll)**2)
+        return -0.2 * DT * float(np.sin(pitch)**2 + np.sin(roll)**2)
 
     def _rew_base_height(self, height):
         """Penalise deviation from standing height. Large scale (-10) is intentional."""
-        return -10.0 * DT * float((height - self._init_height) ** 2)
+        return -2.0 * DT * float((height - self._init_height) ** 2)
 
     def _rew_dof_vel(self):
         """Penalise excessive joint velocities (smooth motion)."""
@@ -640,23 +640,22 @@ class ModularEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self._episode_time += self.dt
 
         # ── Reward terms ─────────────────────────────────────────────────
-        r_tracking   = self._rew_tracking_lin_vel(forward_vel)     # +, max=1.0
+        #r_tracking   = self._rew_tracking_lin_vel(forward_vel)     # +, max=1.0
         r_lin_vel_z  = self._rew_lin_vel_z(root_velz)              # -, stops bouncing
         r_ang_vel_xy = self._rew_ang_vel_xy(pitch_rate, roll_rate)  # -, stops lean
         r_orientation = self._rew_orientation(pitch, roll)          # -, tilt penalty
         r_height     = self._rew_base_height(height)                # -, height penalty
-        r_dof_vel    = self._rew_dof_vel()                          # -, smooth joints
-        r_dof_acc    = self._rew_dof_acc(last_qvel)                 # -, smooth joints
-        r_action_rate = self._rew_action_rate(a, last_action)       # -, smooth policy
+        #r_dof_vel    = self._rew_dof_vel()                          # -, smooth joints
+        #r_dof_acc    = self._rew_dof_acc(last_qvel)                 # -, smooth joints
+        #r_action_rate = self._rew_action_rate(a, last_action)       # -, smooth policy
         r_hip        = self._rew_hip_pos()                          # -, no lateral sway
-        r_contact    = self._rew_contact(self._episode_time)        # +, gait rhythm
-        r_swing      = self._rew_feet_swing_height(self._episode_time)  # -, foot lift
-        r_no_vel     = self._rew_contact_no_vel(self._episode_time) # -, no sliding
-        r_alive      = 0.15 * DT                                     # small survival bonus
+        #r_contact    = self._rew_contact(self._episode_time)        # +, gait rhythm
+        #r_swing      = self._rew_feet_swing_height(self._episode_time)  # -, foot lift
+        #r_no_vel     = self._rew_contact_no_vel(self._episode_time) # -, no sliding
+        r_alive      = 2.0                                    # small survival bonus
 
-        reward = (r_tracking + r_lin_vel_z + r_ang_vel_xy + r_orientation
-                + r_height + r_dof_vel + r_dof_acc + r_action_rate
-                + r_hip + r_contact + r_swing + r_no_vel + r_alive)
+        reward = (r_orientation
+                + r_height + r_alive + r_lin_vel_z + r_ang_vel_xy + r_hip)
         # Clip to zero: equivalent to legged_gym only_positive_rewards.
         # Prevents large penalty terms collapsing the policy during
         # early exploration when the robot has not yet learned to stand.
@@ -681,15 +680,15 @@ class ModularEnv(mujoco_env.MujocoEnv, utils.EzPickle):
             'pitch':          pitch,
             'roll':           roll,
             # individual reward components for debugging
-            'rew/tracking':   r_tracking,
+            #'rew/tracking':   r_tracking,
             'rew/lin_vel_z':  r_lin_vel_z,
             'rew/ang_vel_xy': r_ang_vel_xy,
             'rew/orientation': r_orientation,
             'rew/height':     r_height,
             'rew/hip':        r_hip,
-            'rew/contact':    r_contact,
-            'rew/swing':      r_swing,
-            'rew/no_vel':     r_no_vel,
+            #'rew/contact':    r_contact,
+            #'rew/swing':      r_swing,
+            #'rew/no_vel':     r_no_vel,
         }
 
         if done or self._episode_step >= 1000:
