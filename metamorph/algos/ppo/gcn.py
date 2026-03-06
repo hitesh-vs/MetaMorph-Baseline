@@ -116,23 +116,16 @@ class MorphologyGCN(nn.Module):
 # ──────────────────────────────────────────────────────────────
 
 def build_gcn_from_cfg(cfg) -> "MorphologyGCN | None":
-    """
-    Returns a MorphologyGCN if GRAPH_ENCODING is 'onehot' or 'topological',
-    or None for the 'none' baseline.
-
-    The caller (actor_critic.py) should:
-        self.gcn = build_gcn_from_cfg(cfg)
-        if self.gcn is not None:
-            prop_dim += self.gcn.out_dim   # widen the MLP input
-    """
-    mode = cfg.MODEL.GRAPH_ENCODING   # "none" | "onehot" | "topological"
+    mode = cfg.MODEL.GRAPH_ENCODING
 
     if mode == "none":
         return None
 
     feat_dim = {
-        "onehot":      7,   # fixed vocab, see graphs/parser.py::ONEHOT_CATEGORIES
-        "topological": 6,   # depth, n_children, subtree_size, is_leaf, is_root, degree
+        "onehot":      7,
+        "topological": 6,
+        "rwse":        cfg.MODEL.RWSE_K,
+        "topo+rwse":   6 + cfg.MODEL.RWSE_K,
     }[mode]
 
     return MorphologyGCN(

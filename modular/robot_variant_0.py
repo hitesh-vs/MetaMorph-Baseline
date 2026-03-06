@@ -376,8 +376,9 @@ class ModularEnv(mujoco_env.MujocoEnv, utils.EzPickle):
             elif "knee"      in n: ltv = np.array((0,0,0,1,0,0))
             elif "ankle"     in n: ltv = np.array((0,0,0,0,1,0))
             else:                  ltv = np.array((0,0,0,0,0,0))
-            return np.concatenate([xpos, xvelp, xvelr, expmap, ltv, [angle], joint_range,
-                                   sin_phase, cos_phase])
+            return np.concatenate([xpos, xvelp, xvelr, expmap, [angle], joint_range,
+                                   sin_phase, cos_phase]) # Removed the ohe just to run the baseline without it 
+                                                          # (add ltv later, after expmap)
         return np.concatenate([xpos, xvelp, xvelr, expmap, [angle], joint_range,
                                sin_phase, cos_phase])
 
@@ -398,6 +399,37 @@ class ModularEnv(mujoco_env.MujocoEnv, utils.EzPickle):
             obs['graph_node_features'] = self._graph_node_features
             obs['graph_A_norm']        = self._graph_A_norm
         return obs
+    
+    # ------------------------------------------------------------------
+    # Labels for t-SNE plot
+    # ------------------------------------------------------------------
+
+    def get_limb_labels(self):
+        depth = {}
+        for i in range(1, len(self.model.body_names)):
+            pid = self.sim.model.body_parentid[i]
+            depth[i] = depth.get(pid, 0) + 1
+
+        labels = []
+        for i, bname in enumerate(self.model.body_names[1:], start=1):
+            n = bname.lower()
+            side  = ("left"   if ("left"  in n or "_l_" in n or n.startswith("l_")) else
+                    "right"  if ("right" in n or "_r_" in n or n.startswith("r_")) else
+                    "center")
+            jtype = ("hip_pitch" if "hip_pitch" in n else
+                    "hip_roll"  if "hip_roll"  in n else
+                    "hip_yaw"   if "hip_yaw"   in n else
+                    "knee"      if "knee"      in n else
+                    "ankle"     if "ankle"     in n else
+                    "root"      if ("pelvis"   in n or "torso" in n) else
+                    "other")
+            labels.append({
+                "robot":    self._robot_name,
+                "body":     bname,
+                "semantic": f"{side}_{jtype}",
+                "depth":    depth[i],
+            })
+        return labels
 
     # ------------------------------------------------------------------
     # Reward helpers

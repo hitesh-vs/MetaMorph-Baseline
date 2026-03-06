@@ -220,6 +220,9 @@ class TransformerModel(nn.Module):
 
         self.dropout = nn.Dropout(p=0.1)
 
+        # t-SNE analysis of encodings
+        self._tsne_buffer = {"embeds": [], "active": False}
+
         self.init_weights()
 
     def init_weights(self):
@@ -316,6 +319,9 @@ class TransformerModel(nn.Module):
                 # Project to d_model and add residually
                 obs_embed = obs_embed + self.gcn_proj(gcn_emb)
         # ──────────────────────────────────────────────────────────────────
+
+        if self._tsne_buffer["active"]:
+            self._tsne_buffer["embeds"].append(obs_embed.detach().cpu())
 
         attention_maps = None
 

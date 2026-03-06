@@ -157,14 +157,12 @@ class SubprocVecEnv(VecEnv):
 
 
 def _flatten_obs(obs):
-    assert isinstance(obs, (list, tuple))
-    assert len(obs) > 0
-
-    if isinstance(obs[0], dict):
-        keys = obs[0].keys()
-        return {k: np.stack([o[k] for o in obs]) for k in keys}
-    else:
-        return np.stack(obs)
+    keys = obs[0].keys()
+    for k in keys:
+        shapes = [o[k].shape for o in obs]
+        if len(set(shapes)) > 1:
+            print(f"[SHAPE MISMATCH] key='{k}' shapes={shapes}")
+    return {k: np.stack([o[k] for o in obs]) for k in keys}
 
 
 def _flatten_list(l):

@@ -13,6 +13,14 @@ _C = CN()
 cfg = _C
 
 # ----------------------------------------------------------------------------#
+# t-SNE params 
+# ----------------------------------------------------------------------------#
+
+_C.TSNE_MODE = False
+_C.TSNE_WARMUP_ITERS = 50
+_C.TSNE_CHECKPOINT = ""
+
+# ----------------------------------------------------------------------------#
 # XML template params
 # ----------------------------------------------------------------------------#
 # Refer mujoco docs for what each param does
@@ -467,6 +475,9 @@ _C.MODEL.TRANSFORMER.USE_SWAT_RE = False
 # test per-node embed and decode
 _C.MODEL.TRANSFORMER.PER_NODE_EMBED = False
 _C.MODEL.TRANSFORMER.PER_NODE_DECODER = False
+
+# RWSE embedding dimension
+_C.MODEL.RWSE_K = 8
 
 # --------------------------------------------------------------------------- #
 # Graph Network Options

@@ -16,6 +16,8 @@ import numpy as np
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 
+from metamorph.config import cfg
+
 
 # All possible semantic categories for one-hot (fixed vocab so dim is consistent)
 ONEHOT_CATEGORIES = ["torso", "hip", "knee", "ankle", "shoulder", "elbow", "other"]
@@ -180,6 +182,46 @@ class MujocoGraphParser:
             return self.features_topological()
         else:
             raise ValueError(f"Unknown feature mode: {mode!r}. Use 'onehot' or 'topological'.")
+        
+    def features_rwse(self, k: int = 8) -> np.ndarray:
+        """
+        (N, k) Random Walk Structural Encoding.
+        Entry [i, t] = probability of a length-(t+1) random walk
+        starting at node i returning to node i.
+        Pure topology — zero name parsing, transferable across robots.
+        """
+        A = self.build_adjacency()                    # includes self-loops
+        deg = A.sum(axis=1, keepdims=True)
+        A_rw = A / (deg + 1e-8)                       # row-stochastic D^{-1}A
+
+        X = np.zeros((self.N, k), dtype=np.float32)
+        A_pow = A_rw.copy()                            # A_rw^1
+        for t in range(k):
+            X[:, t] = np.diag(A_pow)                  # return probability at step t+1
+            A_pow = A_pow @ A_rw
+        return X
+
+    def get_features(self, mode: str) -> np.ndarray:
+        if mode == "onehot":
+            return self.features_onehot()
+        elif mode == "topological":
+            return self.features_topological()
+        elif mode == "rwse":
+            k = getattr(cfg, 'MODEL', None)
+            k = cfg.MODEL.RWSE_K if (k and hasattr(cfg.MODEL, 'RWSE_K')) else 8
+            return self.features_rwse(k=k)
+        elif mode == "topo+rwse":
+            k = cfg.MODEL.RWSE_K if hasattr(cfg.MODEL, 'RWSE_K') else 8
+            return np.concatenate([
+                self.features_topological(),
+                self.features_rwse(k=k)
+            ], axis=1)
+        else:
+            raise ValueError(f"Unknown feature mode: {mode!r}")
+
+    @property
+    def rwse_dim(self) -> int:
+        return getattr(cfg.MODEL, 'RWSE_K', 8)
 
     @property
     def onehot_dim(self) -> int:
