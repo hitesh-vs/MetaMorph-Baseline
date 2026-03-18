@@ -96,12 +96,14 @@ def calculate_max_limbs_joints():
 
 def calculate_max_iters():
     # Iter here refers to 1 cycle of experience collection and policy update.
-    cfg.PPO.MAX_ITERS = (
-        int(cfg.PPO.MAX_STATE_ACTION_PAIRS) // cfg.PPO.TIMESTEPS // cfg.PPO.NUM_ENVS
-    )
-    cfg.PPO.EARLY_EXIT_MAX_ITERS = (
-        int(cfg.PPO.EARLY_EXIT_STATE_ACTION_PAIRS) // cfg.PPO.TIMESTEPS // cfg.PPO.NUM_ENVS
-    )
+    # cfg.PPO.MAX_ITERS = (
+    #     int(cfg.PPO.MAX_STATE_ACTION_PAIRS) // cfg.PPO.TIMESTEPS // cfg.PPO.NUM_ENVS
+    # )
+    # cfg.PPO.EARLY_EXIT_MAX_ITERS = (
+    #     int(cfg.PPO.EARLY_EXIT_STATE_ACTION_PAIRS) // cfg.PPO.TIMESTEPS // cfg.PPO.NUM_ENVS
+    # )
+    cfg.PPO.MAX_ITERS = 5000
+    cfg.PPO.EARLY_EXIT_MAX_IETRS = 5000
 
 
 def maybe_infer_walkers():

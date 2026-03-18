@@ -56,4 +56,4 @@ source /home/sviswasam/dr/modumorph_env/bin/activate
 # Delete the eval folder so that evaluate.py can create a new one for this test
 if [ -d "eval/" ]; then rm -rf eval/; fi
 
-python tools/evaluate.py --policy_path "/home/sviswasam/dr/ModuMorph/output_top4_ph1_copy" --policy_name Modular-v0 --seed 1409 --test_folder "/home/sviswasam/dr/ModuMorph/modular/unitree_g1_actual_test"
+python tools/evaluate.py --policy_path "/home/sviswasam/dr/ModuMorph/output_stand3_copy" --policy_name Modular-v0 --seed 1409 --test_folder "/home/sviswasam/dr/ModuMorph/modular/unitree_g1_actual_test"

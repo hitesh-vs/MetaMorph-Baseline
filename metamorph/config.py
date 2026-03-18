@@ -272,7 +272,7 @@ _C.PPO.ENTROPY_COEF = 0.0
 _C.PPO.TIMESTEPS = 2560
 
 # Number of parallel envs for collecting rollouts
-_C.PPO.NUM_ENVS = 32
+_C.PPO.NUM_ENVS = 1024
 
 # Learning rate ranges from BASE_LR to MIN_LR*BASE_LR according to the LR_POLICY
 _C.PPO.BASE_LR = 3e-4
