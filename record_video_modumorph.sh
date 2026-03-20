@@ -5,7 +5,7 @@
 #SBATCH -p short
 #SBATCH -N 1
 #SBATCH -c 2
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:L40S:1
 #SBATCH -t 00:10:00
 #SBATCH --mem 16G
 #SBATCH --job-name="video"
@@ -53,4 +53,4 @@ export PYTHONPATH=/home/sviswasam/dr/ModuMorph:$PYTHONPATH
 # Activate env
 source /home/sviswasam/dr/modumorph_env/bin/activate
 
-python tools/render_video.py --agent g1_12dof --policy_path output_stand3_copy/1409 --agent_path modular/unitree_g1_actual_test --num_episodes 10
+python tools/render_video.py --agent g1_12dof --policy_path output_stand4 --agent_path modular/unitree_g1_actual_test --num_episodes 10

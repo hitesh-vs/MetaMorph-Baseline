@@ -343,10 +343,10 @@ _C.MODEL.LIMB_EMBED_SIZE = 128
 _C.MODEL.JOINT_EMBED_SIZE = 128
 
 # Max number of joints across all the envs
-_C.MODEL.MAX_JOINTS = 7
+_C.MODEL.MAX_JOINTS = 12
 
 # Max number of limbs across all the envs
-_C.MODEL.MAX_LIMBS = 8
+_C.MODEL.MAX_LIMBS = 13
 
 # Fixed std value
 _C.MODEL.ACTION_STD = 0.9
