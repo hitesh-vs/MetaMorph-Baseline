@@ -102,8 +102,8 @@ def calculate_max_iters():
     # cfg.PPO.EARLY_EXIT_MAX_ITERS = (
     #     int(cfg.PPO.EARLY_EXIT_STATE_ACTION_PAIRS) // cfg.PPO.TIMESTEPS // cfg.PPO.NUM_ENVS
     # )
-    cfg.PPO.MAX_ITERS = 5000
-    cfg.PPO.EARLY_EXIT_MAX_IETRS = 5000
+    cfg.PPO.MAX_ITERS = 3000
+    cfg.PPO.EARLY_EXIT_MAX_ITERS = 3000
 
 
 def maybe_infer_walkers():

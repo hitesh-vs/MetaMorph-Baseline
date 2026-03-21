@@ -10,8 +10,8 @@
 #SBATCH --mem 64G
 #SBATCH --job-name="train"
 
-#SBATCH --output=/home/sviswasam/dr/ModuMorph/logs/output_walk_mlp.log
-#SBATCH --error=/home/sviswasam/dr/ModuMorph/logs/err_walk_mlp.err
+#SBATCH --output=/home/sviswasam/dr/ModuMorph/logs/output_walk_isaac.log
+#SBATCH --error=/home/sviswasam/dr/ModuMorph/logs/err_walk_isaac.err
 
 # --- START MUJOCO CONFIG ---
 # 0. Initialize Module System
@@ -57,17 +57,18 @@ export PYTHONPATH=/home/sviswasam/dr/ModuMorph:$PYTHONPATH
 source /home/sviswasam/dr/modumorph_env/bin/activate
 
 python -u tools/train_ppo.py --cfg ./configs/ft_g1.yaml \
-    OUT_DIR ./output_walk_mlp \
+    OUT_DIR ./output_walk_isaac \
     ENV.WALKER_DIR ./modular/unitree_g1_same \
     RNG_SEED 1409 \
     LOG_PERIOD 10 \
-    PPO.MAX_ITERS 5000 \
-    PPO.EARLY_EXIT_MAX_ITERS 5000 \
-    MODEL.TYPE MLP \
+    PPO.MAX_ITERS 3000 \
+    PPO.EARLY_EXIT_MAX_ITERS 3000 \
+    VECENV.TYPE IsaacGym \
+    PPO.NUM_ENVS 4096 \
     MODEL.FINETUNE.FULL_MODEL True \
     MODEL.TRANSFORMER.POS_EMBEDDING None \
     MODEL.TRANSFORMER.EMBEDDING_DROPOUT False \
     MODEL.TRANSFORMER.FIX_ATTENTION True \
     MODEL.TRANSFORMER.HYPERNET False \
     MODEL.TRANSFORMER.CONTEXT_ENCODER linear \
-    MODEL.GRAPH_ENCODING none | tee unitree_mlp.log
+    MODEL.GRAPH_ENCODING topological | tee unitree_isaac.log

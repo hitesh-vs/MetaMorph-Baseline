@@ -88,11 +88,15 @@ def make_vec_envs(
                     envs.append(env_func_wrapper(_env))
                 cfg.PPO.NUM_ENVS = len(envs)
         elif cfg.ENV_NAME == 'Modular-v0':
-            for xml in cfg.ENV.WALKERS:
-                _env = make_env(cfg.ENV_NAME, seed, 0, xml_file=xml)()
-                envs.append(env_func_wrapper(_env))
-                _env = make_env(cfg.ENV_NAME, seed, 1, xml_file=xml)()
-                envs.append(env_func_wrapper(_env))
+            n_walkers = len(cfg.ENV.WALKERS)
+            base = num_env // n_walkers
+            remainder = num_env % n_walkers
+            idx = 0
+            for i, xml in enumerate(cfg.ENV.WALKERS):
+                n = base + (1 if i < remainder else 0)
+                for j in range(n):
+                    envs.append(make_env(cfg.ENV_NAME, seed, idx, xml_file=xml))
+                    idx += 1
             cfg.PPO.NUM_ENVS = len(envs)
 
     if save_video:

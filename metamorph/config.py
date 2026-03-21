@@ -250,7 +250,7 @@ _C.PPO.GAE_LAMBDA = 0.95
 _C.PPO.CLIP_EPS = 0.2
 
 # Number of epochs (K in PPO paper) of sgd on rollouts in buffer
-_C.PPO.EPOCHS = 8
+_C.PPO.EPOCHS = 4
 
 # Batch size for sgd (M in PPO paper)
 _C.PPO.BATCH_SIZE = 5120
@@ -266,16 +266,16 @@ _C.PPO.KL_TARGET_COEF = 20.0
 _C.PPO.USE_CLIP_VALUE_FUNC = True
 
 # Entropy term coefficient
-_C.PPO.ENTROPY_COEF = 0.0
+_C.PPO.ENTROPY_COEF = 0.005
 
 # Max timesteps per rollout
 _C.PPO.TIMESTEPS = 2560
 
 # Number of parallel envs for collecting rollouts
-_C.PPO.NUM_ENVS = 1024
+_C.PPO.NUM_ENVS = 128
 
 # Learning rate ranges from BASE_LR to MIN_LR*BASE_LR according to the LR_POLICY
-_C.PPO.BASE_LR = 3e-4
+_C.PPO.BASE_LR = 6e-4
 _C.PPO.MIN_LR = 0.0
 
 # Learning rate policy select from {'cos', 'lin', 'constant'}
